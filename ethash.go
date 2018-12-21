@@ -112,6 +112,12 @@ func (cache *cache) compute(dagSize uint64, hash common.Hash, nonce uint64) (ok 
 	return bool(ret.success), h256ToHash(ret.mix_hash), h256ToHash(ret.result)
 }
 
+func (cache *cache) computeProgpow(dagSize uint64, hash common.Hash, nonce uint64, block_number uint64) (ok bool, mixDigest, result common.Hash) {
+	ret := C.progpow_light_compute_internal(cache.ptr, C.uint64_t(dagSize), hashToH256(hash), C.uint64_t(nonce), C.uint64_t(block_number))
+	_ = cache
+	return bool(ret.success), h256ToHash(ret.mix_hash), h256ToHash(ret.result)
+}
+
 // Light implements the Verify half of the proof of work. It uses a few small
 // in-memory caches to verify the nonces found by Full.
 type Light struct {
@@ -126,6 +132,11 @@ type Light struct {
 
 // Verify checks whether the block's nonce is valid.
 func (l *Light) Verify(block Block) bool {
+       return l.VerifyWithAlgo(block, "ethash")
+}
+
+// Verify checks with given algorithm name
+func (l *Light) VerifyWithAlgo(block Block, algo string) bool {
 	// TODO: do ethash_quick_verify before getCache in order
 	// to prevent DOS attacks.
 	blockNum := block.NumberU64()
@@ -151,7 +162,16 @@ func (l *Light) Verify(block Block) bool {
 		dagSize = dagSizeForTesting
 	}
 	// Recompute the hash using the cache.
-	ok, mixDigest, result := cache.compute(uint64(dagSize), block.HashNoNonce(), block.Nonce())
+	var ok bool
+	var mixDigest, result common.Hash
+	switch algo {
+	case "progpow":
+		ok, mixDigest, result = cache.computeProgpow(uint64(dagSize), block.HashNoNonce(), block.Nonce(), blockNum)
+		break
+	default:
+		ok, mixDigest, result = cache.compute(uint64(dagSize), block.HashNoNonce(), block.Nonce())
+		break
+	}
 	if !ok {
 		return false
 	}
@@ -168,9 +188,19 @@ func (l *Light) Verify(block Block) bool {
 
 // compute() to get mixhash and result
 func (l *Light) Compute(blockNum uint64, hashNoNonce common.Hash, nonce uint64) (ok bool, mixDigest common.Hash, result common.Hash) {
+	return l.ComputeWithAlgo(blockNum, hashNoNonce, nonce, "ethash")
+}
+
+// compute() to get mixhash and result with algo
+func (l *Light) ComputeWithAlgo(blockNum uint64, hashNoNonce common.Hash, nonce uint64, algo string) (ok bool, mixDigest common.Hash, result common.Hash) {
 	cache := l.getCache(blockNum)
 	dagSize := C.ethash_get_datasize(C.uint64_t(blockNum))
-	return cache.compute(uint64(dagSize), hashNoNonce, nonce)
+	switch algo {
+	case "progpow":
+		return cache.computeProgpow(uint64(dagSize), hashNoNonce, nonce, blockNum)
+	default:
+		return cache.compute(uint64(dagSize), hashNoNonce, nonce)
+	}
 }
 
 func h256ToHash(in C.ethash_h256_t) common.Hash {
