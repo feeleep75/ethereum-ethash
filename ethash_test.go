@@ -77,6 +77,33 @@ var validBlocks = []*testBlock{
 	},
 }
 
+var validProgpowBlocks = []*testBlock{
+	// from proof of concept nine testnet, epoch 0
+	{
+		number:      0,
+		hashNoNonce: common.HexToHash("0000000000000000000000000000000000000000000000000000000000000000"),
+		difficulty:  big.NewInt(1),
+		nonce:       0x0000000000000000,
+		mixDigest:   common.HexToHash("faeb1be51075b03a4ff44b335067951ead07a3b078539ace76fd56fc410557a3"),
+	},
+	// from proof of concept nine testnet, epoch 1
+	{
+		number:      30049,
+		hashNoNonce: common.HexToHash("8b6ce5da0b06d18db7bd8492d9e5717f8b53e7e098d9fef7886d58a6e913ef64"),
+		difficulty:  big.NewInt(1),
+		nonce:       0x005e2e215a8ca2e7,
+		mixDigest:   common.HexToHash("57fe6a9fbf920b4e91deeb66cb0efa971e08229d1a160330e08da54af0689add"),
+	},
+	// from proof of concept nine testnet, epoch 1
+	{
+		number:      59999,
+		hashNoNonce: common.HexToHash("f5c50ba5c0d6210ddb16250ec3efda178de857b2b1703d8d5403bd0f848e19cf"),
+		difficulty:  big.NewInt(1),
+		nonce:       0x02edb6275bd221e3,
+		mixDigest:   common.HexToHash("653eda37d337e39d311d22be9bbd3458d3abee4e643bee4a7280a6d08106ef98"),
+	},
+}
+
 var invalidZeroDiffBlock = testBlock{
 	number:      61440000,
 	hashNoNonce: crypto.Sha3Hash([]byte("foo")),
@@ -89,6 +116,15 @@ func TestEthashVerifyValid(t *testing.T) {
 	eth := New()
 	for i, block := range validBlocks {
 		if !eth.Verify(block) {
+			t.Errorf("block %d (%x) did not validate.", i, block.hashNoNonce[:6])
+		}
+	}
+}
+
+func TestProgpowVerifyValid(t *testing.T) {
+	eth := New()
+	for i, block := range validProgpowBlocks {
+		if !eth.VerifyWithAlgo(block, "progpow") {
 			t.Errorf("block %d (%x) did not validate.", i, block.hashNoNonce[:6])
 		}
 	}
